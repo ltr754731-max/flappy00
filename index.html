@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Simple Flappy Bird Clone</title>
+    <style>
+        /* CSS Styling */
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f0f0f0;
+            font-family: sans-serif;
+        }
+        canvas {
+            border: 2px solid #333;
+            background-color: #70c5ce; /* Sky Blue */
+            display: block;
+        }
+    </style>
+</head>
+<body>
+
+    <canvas id="gameCanvas" width="400" height="600"></canvas>
+
+    <script>
+        // --- 1. SETUP THE CANVAS AND CONTEXT ---
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        // --- 2. GAME CONSTANTS AND VARIABLES ---
+        const BIRD_SIZE = 30;
+        const GRAVITY = 0.5;
+        const JUMP_POWER = -8;
+        const PIPE_WIDTH = 50;
+        const PIPE_GAP = 150;
+        const PIPE_SPEED = 3;
+        const PIPE_SPAWN_INTERVAL = 1500; // in milliseconds
+        
+        let birdY = canvas.height / 2;
+        let birdVelocity = 0;
+        let pipes = [];
+        let score = 0;
+        let isGameOver = false;
+        let lastPipeTime = 0;
+
+        // --- 3. BIRD CONTROL (JUMP) ---
+        function birdJump() {
+            if (isGameOver) {
+                resetGame();
+                return;
+            }
+            // Overrides gravity for a powerful upward thrust
+            birdVelocity = JUMP_POWER;
+        }
+
+        // Handle jump on mouse click or spacebar
+        canvas.addEventListener('mousedown', birdJump);
+        document.addEventListener('keydown', (e) => {
+            if (e.code === 'Space') {
+                birdJump();
+            }
+        });
+
+        // --- 4. GAME OBJECT DRAWING FUNCTIONS ---
+
+        function drawBird() {
+            ctx.fillStyle = 'yellow';
+            // Draw a circle for the bird
+            ctx.beginPath();
+            ctx.arc(50, birdY, BIRD_SIZE / 2, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        function drawPipes() {
+            ctx.fillStyle = 'green';
+            for (const pipe of pipes) {
+                // Top Pipe
+                ctx.fillRect(pipe.x, 0, PIPE_WIDTH, pipe.topHeight);
+                // Bottom Pipe
+                const bottomY = pipe.topHeight + PIPE_GAP;
+                ctx.fillRect(pipe.x, bottomY, PIPE_WIDTH, canvas.height - bottomY);
+            }
+        }
+
+        function drawScore() {
+            ctx.fillStyle = 'black';
+            ctx.font = '24px Arial';
+            ctx.textAlign = 'left';
+            ctx.fillText(`Score: ${score}`, 10, 30);
+        }
+
+        function drawGameOver() {
+            ctx.fillStyle = 'red';
+            ctx.font = '48px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText('GAME OVER', canvas.width / 2, canvas.height / 2 - 20);
+            ctx.font = '20px Arial';
+            ctx.fillText('Click or press Space to Restart', canvas.width / 2, canvas.height / 2 + 30);
+        }
+        
+        // --- 5. GAME LOGIC UPDATES ---
+
+        function updateGame(timestamp) {
+            if (isGameOver) {
+                drawGameOver();
+                return;
+            }
+
+            // Clear the canvas for the next frame
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = '#70c5ce'; // Redraw sky background
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Bird Physics: Apply Gravity and update position
+            birdVelocity += GRAVITY;
+            birdY += birdVelocity;
+
+            // Pipe Spawning
+            if (timestamp - lastPipeTime > PIPE_SPAWN_INTERVAL) {
+                spawnPipe();
+                lastPipeTime = timestamp;
+            }
+
+            // Update and Draw Pipes
+            updatePipes();
+
+            // Collision Detection
+            if (checkCollision()) {
+                isGameOver = true;
+            }
+
+            // Check if the bird passed a pipe (scoring)
+            updateScore();
+            
+            // Draw all elements
+            drawPipes();
+            drawBird();
+            drawScore();
+
+            // Loop the game
+            requestAnimationFrame(updateGame);
+        }
+
+        function spawnPipe() {
+            // Randomly determine the height of the top pipe (ensuring room for the gap)
+            const minHeight = 50;
+            const maxHeight = canvas.height - PIPE_GAP - minHeight;
+            const topHeight = Math.floor(Math.random() * (maxHeight - minHeight + 1)) + minHeight;
+
+            pipes.push({
+                x: canvas.width,
+                topHeight: topHeight,
+                passed: false // To track if the bird has scored for this pipe
+            });
+        }
+
+        function updatePipes() {
+            for (let i = pipes.length - 1; i >= 0; i--) {
+                const pipe = pipes[i];
+                // Move pipe to the left
+                pipe.x -= PIPE_SPEED;
+
+                // Remove pipe if it's off-screen
+                if (pipe.x + PIPE_WIDTH < 0) {
+                    pipes.splice(i, 1);
+                }
+            }
+        }
+
+        function updateScore() {
+             for (const pipe of pipes) {
+                // The bird is at x=50. If the pipe is now behind that point, and we haven't scored yet:
+                if (pipe.x + PIPE_WIDTH < 50 && !pipe.passed) {
+                    score++;
+                    pipe.passed = true;
+                }
+            }
+        }
+
+        function checkCollision() {
+            const birdRight = 50 + BIRD_SIZE / 2;
+            const birdLeft = 50 - BIRD_SIZE / 2;
+            const birdTop = birdY - BIRD_SIZE / 2;
+            const birdBottom = birdY + BIRD_SIZE / 2;
+
+            // 1. Ground or Ceiling Collision
+            if (birdBottom > canvas.height || birdTop < 0) {
+                return true;
+            }
+
+            // 2. Pipe Collision
+            for (const pipe of pipes) {
+                const pipeRight = pipe.x + PIPE_WIDTH;
+                const pipeBottomY = pipe.topHeight + PIPE_GAP;
+
+                // Check if the bird is horizontally within the pipe
+                if (birdRight > pipe.x && birdLeft < pipeRight) {
+                    // Check for vertical collision with the top pipe OR bottom pipe
+                    if (birdTop < pipe.topHeight || birdBottom > pipeBottomY) {
+                        return true;
+                    }
+                }
+            }
+
+            return false;
+        }
+
+        // --- 6. GAME INITIALIZATION ---
+        
+        function resetGame() {
+            birdY = canvas.height / 2;
+            birdVelocity = 0;
+            pipes = [];
+            score = 0;
+            isGameOver = false;
+            lastPipeTime = 0;
+            requestAnimationFrame(updateGame); // Restart the loop
+        }
+
+        // Start the game loop for the first time
+        requestAnimationFrame(updateGame);
+
+    </script>
+</body>
+</html>
