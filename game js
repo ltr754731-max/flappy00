@@ -1,0 +1,33 @@
+// game.js
+
+// Get a reference to the audio element
+const gameMusic = document.getElementById('game-music');
+
+/**
+ * 🎵 Starts the background music.
+ * This should be called only once, on the first user interaction (click/keypress) 
+ * to comply with browser autoplay policies.
+ */
+function startGameMusic() {
+    // Attempt to play the audio
+    const playPromise = gameMusic.play();
+
+    if (playPromise !== undefined) {
+        playPromise.then(_ => {
+            // Success! Music is playing.
+        })
+        .catch(error => {
+            // Autoplay blocked. The music will start on the next valid user action.
+            console.warn("Autoplay prevented. Music will start on the first user action.");
+        });
+    }
+}
+
+/**
+ * ⏸️ Stops the music and resets it.
+ * This should be called when the game ends (Game Over).
+ */
+function stopGameMusic() {
+    gameMusic.pause();
+    gameMusic.currentTime = 0; // Rewind to the start for the next round
+}
